@@ -20,7 +20,8 @@ import {
 import { appendLog, milestoneFor } from '../lifeLog';
 import { rollDeath, worstCondition } from '../mortality';
 import { agingDrift, applyStatDeltas, diffStats, energyRecovery } from '../stats';
-import { FOCUS_AREAS, FocusArea, GameState } from '../types';
+import { traitMods } from '../traits';
+import { FOCUS_AREAS, FocusArea, GameState, Stats, STAT_KEYS } from '../types';
 
 /** AGING must last at least this long (game-clock ms) and cannot be shortened by input. */
 export const MIN_AGING_MS = 2000;
@@ -99,7 +100,9 @@ export function reduceYear(state: GameState, action: YearAction, pools: GameCont
         e.eventId === action.eventId ? { ...e, resolvedChoiceId: choice.id } : e,
       );
       const rng = createRng(state.rngState);
-      const character = resolveChoice(state.character, choice, rng);
+      const resolved = resolveChoice(state.character, choice, rng);
+      // Remember when we saw this event so it can cool down (or never repeat).
+      const character = { ...resolved, flags: { ...resolved.flags, [`seen.${pending.def.id}`]: resolved.age } };
       return accept({ ...withPhase(state, { pendingEvents }), character, rngState: rng.state() });
     }
 
@@ -127,19 +130,26 @@ export function reduceYear(state: GameState, action: YearAction, pools: GameCont
   }
 }
 
+function addDeltas(a: Partial<Stats>, b: Partial<Stats>): Partial<Stats> {
+  const out: Partial<Stats> = { ...a };
+  for (const k of STAT_KEYS) if (b[k]) out[k] = (out[k] ?? 0) + (b[k] ?? 0);
+  return out;
+}
+
 function finishYear(state: GameState, content: GameContent): GameState {
   const loop = state.yearLoop;
   const before = state.character.stats;
   const rng = createRng(state.rngState);
   const notes: string[] = [];
 
-  const focus = focusOutcome(loop.allocation);
+  const mods = traitMods(state.character, content.traits);
+  const focus = focusOutcome(loop.allocation, mods.focus);
   const newAge = state.character.age + 1;
   let character = state.character;
   const recovered = applyStatDeltas(before, { energy: energyRecovery(before.energy) });
   const stats = applyStatDeltas(
     applyStatDeltas(recovered, focus.stats),
-    agingDrift(character.age),
+    addDeltas(agingDrift(character.age), mods.drift),
   );
   character = { ...character, stats, workXp: character.workXp + focus.workXp };
 

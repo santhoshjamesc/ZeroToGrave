@@ -67,4 +67,36 @@ describe('content validation', () => {
       else expect(o.price).toBeGreaterThan(0);
     }
   });
+
+  it('event requirements reference real traits and flags that something can set', () => {
+    const traitIds = new Set(c.traits.map((t) => t.id));
+    const settable = new Set<string>();
+    const scan = (effects: { type: string; key?: string }[]) => effects.forEach((e) => e.type === 'flag' && e.key && settable.add(e.key));
+    const all = [...c.events, ...c.fallback];
+    for (const e of all) for (const ch of e.choices) {
+      scan(ch.effects);
+      if (ch.gamble) { scan(ch.gamble.win); scan(ch.gamble.lose); }
+    }
+    for (const a of c.activities) a.outcomes.forEach((o) => scan(o.effects));
+    for (const f of ['family_struggling', 'family_modest', 'family_comfortable', 'family_wealthy']) settable.add(f);
+    for (const e of all) {
+      for (const t of e.requiresTraits ?? []) expect(traitIds.has(t)).toBe(true);
+      for (const f of e.requiresFlags ?? []) expect(`${e.id} needs ${f}: ${settable.has(f)}`).toBe(`${e.id} needs ${f}: true`);
+    }
+  });
+
+  it('no activity, career or event lets a baby do adult things', () => {
+    for (const k of c.careers) expect(k.minAge).toBeGreaterThanOrEqual(14);
+    for (const k of c.crimes) expect(k.minAge).toBeGreaterThanOrEqual(8);
+    for (const e of c.events) {
+      const adultish = /\b(college|university|job interview|mortgage|wedding|divorce)\b/i.test(e.title);
+      if (adultish) expect(e.minAge).toBeGreaterThanOrEqual(14);
+    }
+  });
+
+  it('there is plenty to do at every life stage', () => {
+    for (const age of [0, 1, 2, 3, 4]) expect(c.activities.filter((a) => a.where !== 'prison' && age >= a.minAge && age <= a.maxAge).length).toBeGreaterThanOrEqual(4);
+    expect(c.activities.length).toBeGreaterThanOrEqual(100);
+    expect(c.careers.length).toBeGreaterThanOrEqual(100);
+  });
 });

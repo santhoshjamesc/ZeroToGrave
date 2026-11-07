@@ -87,3 +87,19 @@ const styles = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: colors.surface, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
 });
+
+/** A gentle "not yet" card for things age keeps out of reach. */
+export function LockedCard({ icon, title, minAge, age, note }: { icon: string; title: string; minAge: number; age: number; note?: string }) {
+  const years = Math.max(0, minAge - age);
+  return (
+    <View style={[styles.banner, { backgroundColor: colors.surface, opacity: 0.85, gap: 4 }]} accessible accessibilityLabel={`${title} locked until age ${minAge}`}>
+      <Text style={[styles.bannerText, { color: colors.text, fontWeight: '800' }]}>
+        🔒 {icon} {title}
+      </Text>
+      <Text style={[styles.bannerText, { color: colors.muted }]}>
+        {years <= 1 ? 'Unlocks next year' : `Unlocks at age ${minAge} (${years} years to go)`}
+        {note ? ` · ${note}` : ''}
+      </Text>
+    </View>
+  );
+}

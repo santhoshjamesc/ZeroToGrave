@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { gameContent } from '@content/index';
-import { activityBlocker, catchChance, crimeBlocker } from '@engine/index';
+import { activityBlocker, AGE_GATES, catchChance, crimeBlocker } from '@engine/index';
 import type { ActivityCategory } from '@engine/content';
 import { useSettings } from '@store/useSettings';
 import { Button, Card, Chip } from '../components/kit';
 import { colors } from '../theme/tokens';
-import { Banner, common, FadeIn, fmt, pageStyle, SectionHeader, TabProps } from './shared';
+import { Banner, common, FadeIn, fmt, LockedCard, pageStyle, SectionHeader, TabProps } from './shared';
 
 type Cat = Exclude<ActivityCategory, 'crime'> | 'crime';
 
@@ -58,7 +58,9 @@ export default function ActivitiesTab({ game, act, guarded }: TabProps) {
 
       <SectionHeader icon={meta.icon} title={meta.label} color={meta.color} />
 
-      {cat === 'crime' ? (
+      {cat === 'crime' && c.age < AGE_GATES.crime ? (
+        <LockedCard icon="🕶️" title="Trouble" minAge={AGE_GATES.crime} age={c.age} note="Just be a kid" />
+      ) : cat === 'crime' ? (
         <>
           <Banner tone="warn" text="Crime pays, until it doesn't. Getting caught means court, and maybe prison." />
           {gameContent.crimes.map((k) => {
@@ -86,8 +88,9 @@ export default function ActivitiesTab({ game, act, guarded }: TabProps) {
           })}
         </>
       ) : (
-        gameContent.activities
-          .filter((a) => a.category === cat && ((a.where ?? 'free') === 'prison') === !!prison)
+        <>
+        {gameContent.activities
+          .filter((a) => a.category === cat && ((a.where ?? 'free') === 'prison') === !!prison && c.age >= a.minAge && c.age <= a.maxAge)
           .map((a) => {
             const why = activityBlocker(c, a);
             return (
@@ -109,7 +112,25 @@ export default function ActivitiesTab({ game, act, guarded }: TabProps) {
                 </Card>
               </FadeIn>
             );
-          })
+          })}
+        {(() => {
+          const later = gameContent.activities
+            .filter((a) => a.category === cat && ((a.where ?? 'free') === 'free') && !prison && c.age < a.minAge)
+            .sort((a, b) => a.minAge - b.minAge);
+          if (later.length === 0) return null;
+          return (
+            <View style={{ gap: 6 }}>
+              <Text style={[common.sub, { letterSpacing: 1, textTransform: 'uppercase' }]}>🔒 Unlocks later ({later.length})</Text>
+              <View style={common.wrap}>
+                {later.slice(0, 10).map((a) => (
+                  <Chip key={a.id} text={`${a.icon} ${a.label} · ${a.minAge}+`} />
+                ))}
+                {later.length > 10 && <Chip text={`+${later.length - 10} more`} />}
+              </View>
+            </View>
+          );
+        })()}
+        </>
       )}
     </ScrollView>
   );

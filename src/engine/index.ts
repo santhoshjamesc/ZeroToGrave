@@ -25,3 +25,4 @@ export * from './actions';
 export * from './game';
 export * from './ageGates';
 export * from './traits';
+export * from './expression';

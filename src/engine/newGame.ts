@@ -3,6 +3,7 @@ import { educationForAge } from './education';
 import { emptyAllocation, focusBudget } from './focus';
 import { ACTIONS_PER_YEAR } from './migrate';
 import { generatePerson, IdentityPools } from './identity';
+import { applyBirthTraits } from './traits';
 import { Character, GameState, Identity, Relationship, Trait } from './types';
 
 const PLACEHOLDER_IDENTITY: Identity = {
@@ -96,5 +97,13 @@ export function newGame(
 export function newRandomGame(seed: number, pools: IdentityPools, currentYear = 2026): GameState {
   const rng = createRng(seed ^ 0x51ed270b);
   const p = generatePerson(rng, pools, { currentYear });
-  return newGame(p.name, seed, [], p.identity, p.family);
+  const game = newGame(p.name, seed, p.traits, p.identity, p.family);
+  // Personality shapes who you start as; family wealth shapes what you start with.
+  const defs = (pools.traits ?? []).filter((d) => p.traits.some((t) => t.id === d.id));
+  const character = {
+    ...game.character,
+    stats: applyBirthTraits(game.character.stats, defs),
+    flags: { ...game.character.flags, ...p.flags },
+  };
+  return { ...game, character, yearLoop: { ...game.yearLoop, focusBudget: focusBudget(character) } };
 }

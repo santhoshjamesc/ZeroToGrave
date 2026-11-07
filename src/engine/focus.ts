@@ -48,7 +48,7 @@ export const FOCUS_EFFECTS: Record<FocusArea, FocusEffect> = {
   sideHustle: { stats: { happiness: -0.2, energy: -3 }, money: 500, workXp: 0.3 },
 };
 
-export function focusOutcome(alloc: FocusAllocation): {
+export function focusOutcome(alloc: FocusAllocation, mult?: Partial<Record<FocusArea, number>>): {
   stats: Partial<Stats>;
   money: number;
   workXp: number;
@@ -57,7 +57,7 @@ export function focusOutcome(alloc: FocusAllocation): {
   let money = 0;
   let workXp = 0;
   for (const area of FOCUS_AREAS) {
-    const units = effectiveUnits(alloc[area]);
+    const units = effectiveUnits(alloc[area]) * (mult?.[area] ?? 1);
     if (units === 0) continue;
     const eff = FOCUS_EFFECTS[area];
     for (const [k, v] of Object.entries(eff.stats) as [keyof Stats, number][]) {

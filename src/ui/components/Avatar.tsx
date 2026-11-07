@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, G, Line, Path, Rect } from 'react-native-svg';
 import { AvatarSpec } from '@engine/avatar';
+import { applyMicro, baseFace, Cue, cueSequence, Face, MicroId, MICROS, microPool, pickMicro, MouthKind } from '@engine/expression';
 import { boopHaptic, tapHaptic } from '../feedback';
 import { colors } from '../theme/tokens';
 
@@ -49,11 +50,16 @@ interface Props {
   onTap?: (region: Region) => void;
   /** Show only head and shoulders (for lists). */
   bust?: boolean;
+  /** A reaction to play (change `id` to trigger again). */
+  cue?: { id: number; kind: Cue } | null;
 }
 
 /** Procedural 2D avatar: age, mood, health, clothing from `spec`; taps make it react. */
-function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false }: Props) {
+function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false, cue = null }: Props) {
   const [blink, setBlink] = useState(false);
+  const [micro, setMicro] = useState<MicroId | null>(null);
+  const microTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lead = spec.temperaments[0];
   const [bubble, setBubble] = useState<string | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
   const bob = useRef(new Animated.Value(0)).current;
@@ -94,6 +100,46 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
     schedule();
     return () => clearTimeout(t);
   }, []);
+
+  const clearMicro = useCallback(() => {
+    microTimers.current.forEach(clearTimeout);
+    microTimers.current = [];
+  }, []);
+
+  // Idle micro-expressions: a flicker every few seconds, flavoured by personality, mood and age.
+  useEffect(() => {
+    if (!spec.alive || spec.sickness > 0.85) return;
+    const pool = microPool(spec.temperaments, spec.mood, spec.stage);
+    let t: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      t = setTimeout(() => {
+        const id = pickMicro(pool, Math.random());
+        if (id) {
+          setMicro(id);
+          microTimers.current.push(setTimeout(() => setMicro(null), MICROS[id].ms));
+        }
+        schedule();
+      }, 2600 + Math.random() * 4200);
+    };
+    schedule();
+    return () => clearTimeout(t);
+  }, [spec.alive, spec.sickness, spec.temperaments, spec.mood, spec.stage]);
+
+  // Reactions: a short sequence of micros, played by temperament.
+  useEffect(() => {
+    if (!cue) return;
+    clearMicro();
+    let at = 0;
+    for (const step of cueSequence(cue.kind, lead)) {
+      const def = MICROS[step.micro];
+      microTimers.current.push(setTimeout(() => setMicro(step.micro), at));
+      at += def.ms;
+      microTimers.current.push(setTimeout(() => setMicro(null), at));
+      at += step.gap;
+    }
+  }, [cue?.id]);
+
+  useEffect(() => clearMicro, [clearMicro]);
 
   useEffect(
     () => () => {
@@ -140,6 +186,11 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
     onTap?.(region);
   };
 
+  const face = useMemo(() => {
+    const base = baseFace(spec.mood, lead, spec.sickness);
+    return micro ? applyMicro(base, micro) : base;
+  }, [spec.mood, spec.sickness, lead, micro]);
+  const f = spec.features;
   const hair = useMemo(() => mix(spec.hairColor, '#C9CCD6', spec.grey), [spec.hairColor, spec.grey]);
   const skinShade = useMemo(() => mix(spec.skinTone, '#000000', 0.12), [spec.skinTone]);
   const rotate = wiggle.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '6deg'] });
@@ -179,6 +230,21 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
               <Ellipse cx={118} cy={277} rx={17} ry={8} fill="#1E1E28" />
               {/* torso */}
               <Path d="M66 144 Q100 128 134 144 L138 222 Q100 230 62 222 Z" fill={spec.shirt} />
+              {f.pattern === 'stripes' && (
+                <G stroke="#FFFFFF" strokeWidth={4} opacity={0.35}>
+                  {[160, 174, 188, 202, 216].map((y) => (
+                    <Line key={y} x1={66} y1={y} x2={134} y2={y} />
+                  ))}
+                </G>
+              )}
+              {f.pattern === 'dots' && (
+                <G fill="#FFFFFF" opacity={0.35}>
+                  {[[80, 164], [100, 172], [120, 164], [88, 192], [112, 192], [100, 210], [76, 212], [124, 212]].map(([x, y], i) => (
+                    <Circle key={i} cx={x} cy={y} r={3.5} />
+                  ))}
+                </G>
+              )}
+              {f.pattern === 'collar' && <Path d="M84 136 L100 156 L116 136 L108 134 L100 144 L92 134 Z" fill="#FFFFFF" opacity={0.8} />}
               {spec.accessory === 'tie' && <Path d="M100 140 L93 152 L100 196 L107 152 Z" fill="#C0392B" />}
               {/* arms */}
               <Path d="M68 148 Q50 178 56 206" stroke={spec.shirt} strokeWidth={17} strokeLinecap="round" fill="none" />
@@ -199,18 +265,37 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
                 {(spec.hairStyle === 'long') && (
                   <Path d="M62 92 Q56 46 100 46 Q144 46 138 92 L144 160 Q100 172 56 160 Z" fill={hair} />
                 )}
-                <Ellipse cx={64} cy={98} rx={6} ry={9} fill={spec.skinTone} />
-                <Ellipse cx={136} cy={98} rx={6} ry={9} fill={spec.skinTone} />
-                <Ellipse cx={100} cy={95} rx={35} ry={38} fill={spec.skinTone} />
-                {spec.sickness > 0.05 && (
-                  <Ellipse cx={100} cy={95} rx={35} ry={38} fill="#8DBE7A" opacity={spec.sickness * 0.4} />
+                <Ellipse cx={64 - (f.faceW - 1) * 30} cy={98} rx={6 * f.earSize} ry={9 * f.earSize} fill={spec.skinTone} />
+                <Ellipse cx={136 + (f.faceW - 1) * 30} cy={98} rx={6 * f.earSize} ry={9 * f.earSize} fill={spec.skinTone} />
+                {f.earrings && (
+                  <G fill="#F2C14E">
+                    <Circle cx={64 - (f.faceW - 1) * 30} cy={108 + 8 * f.earSize} r={2.6} />
+                    <Circle cx={136 + (f.faceW - 1) * 30} cy={108 + 8 * f.earSize} r={2.6} />
+                  </G>
                 )}
+                <G transform={`translate(100 95) scale(${f.faceW} 1) translate(-100 -95)`}>
+                  {f.jaw === 'square' ? (
+                    <Rect x={65} y={57} width={70} height={80} rx={26} fill={spec.skinTone} />
+                  ) : (
+                    <Ellipse cx={100} cy={f.jaw === 'soft' ? 97 : 95} rx={35} ry={f.jaw === 'soft' ? 40 : 38} fill={spec.skinTone} />
+                  )}
+                  {spec.sickness > 0.05 && (
+                    <Ellipse cx={100} cy={95} rx={35} ry={38} fill="#8DBE7A" opacity={spec.sickness * 0.4} />
+                  )}
+                </G>
                 {spec.beard && (
                   <Path d="M66 100 Q68 146 100 148 Q132 146 134 100 Q122 124 100 124 Q78 124 66 100 Z" fill={hair} />
                 )}
                 {/* cheeks + freckles */}
-                <Circle cx={78} cy={108} r={6} fill="#FF8FA3" opacity={spec.mood === 'ecstatic' || spec.mood === 'happy' ? 0.35 : 0.12} />
-                <Circle cx={122} cy={108} r={6} fill="#FF8FA3" opacity={spec.mood === 'ecstatic' || spec.mood === 'happy' ? 0.35 : 0.12} />
+                <Circle cx={78} cy={108} r={6 + face.blush * 2} fill="#FF8FA3" opacity={0.1 + face.blush * 0.55} />
+                <Circle cx={122} cy={108} r={6 + face.blush * 2} fill="#FF8FA3" opacity={0.1 + face.blush * 0.55} />
+                {f.mole && <Circle cx={f.mole.x} cy={f.mole.y} r={1.8} fill="#4A2C1B" opacity={0.7} />}
+                {f.dimples && (face.mouth === 'smile' || face.mouth === 'grin') && (
+                  <G stroke={skinShade} strokeWidth={1.6} strokeLinecap="round" fill="none">
+                    <Path d="M80 116 q-2 3 0 6" />
+                    <Path d="M120 116 q2 3 0 6" />
+                  </G>
+                )}
                 {spec.freckles && (
                   <G fill={skinShade}>
                     {[[82, 104], [88, 108], [78, 110], [112, 104], [118, 108], [122, 110]].map(([x, y], i) => (
@@ -264,7 +349,21 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
                   </G>
                 )}
                 {/* brows */}
-                <Face spec={spec} blink={blink} hair={hair} />
+                <FaceView spec={spec} face={face} blink={blink} hair={hair} />
+                {f.headwear === 'cap' && (
+                  <G>
+                    <Path d="M62 80 Q62 44 100 44 Q138 44 138 80 Z" fill="#3B6FB6" />
+                    <Path d="M100 76 L152 80 Q150 88 100 84 Z" fill="#2D5896" />
+                  </G>
+                )}
+                {f.headwear === 'beanie' && (
+                  <G>
+                    <Path d="M62 82 Q60 40 100 40 Q140 40 138 82 Q100 70 62 82 Z" fill="#C0392B" />
+                    <Rect x={60} y={76} width={80} height={9} rx={4} fill="#A93226" />
+                    <Circle cx={100} cy={38} r={6} fill="#E8E8F0" />
+                  </G>
+                )}
+                {f.headwear === 'headband' && <Path d="M64 74 Q100 60 136 74" stroke="#E56B9B" strokeWidth={6} fill="none" strokeLinecap="round" />}
               </G>
             </G>
           </Svg>
@@ -274,52 +373,88 @@ function AvatarImpl({ spec, size = 220, interactive = true, onTap, bust = false 
   );
 }
 
-function Face({ spec, blink, hair }: { spec: AvatarSpec; blink: boolean; hair: string }) {
-  const sad = spec.mood === 'sad' || spec.mood === 'miserable';
-  const browTilt = sad ? 4 : spec.mood === 'ecstatic' ? -3 : 0;
+function mouthPath(kind: MouthKind, w: number): { d: string; fill?: string } {
+  const hw = 12 * w;
+  const l = 100 - hw;
+  const r = 100 + hw;
+  switch (kind) {
+    case 'grin':
+      return { d: `M${l - 4} 110 Q100 134 ${r + 4} 110 Z`, fill: '#7A1F2B' };
+    case 'smile':
+      return { d: `M${l} 113 Q100 125 ${r} 113` };
+    case 'flat':
+      return { d: `M${l + 2} 117 L${r - 2} 117` };
+    case 'frown':
+      return { d: `M${l + 1} 120 Q100 110 ${r - 1} 120` };
+    case 'smirkL':
+      return { d: `M${l} 111 Q${100 - 4} 122 ${r - 4} 117` };
+    case 'smirkR':
+      return { d: `M${l + 4} 117 Q${100 + 4} 122 ${r} 111` };
+    case 'pursed':
+      return { d: `M${94} 117 Q100 113 106 117 Q100 121 94 117 Z`, fill: '#7A1F2B' };
+    case 'o':
+      return { d: 'M95 116 Q100 111 105 116 Q100 124 95 116 Z', fill: '#7A1F2B' };
+    case 'wobble':
+      return { d: `M${l + 3} 119 Q${92} 113 ${98} 119 Q${106} 113 ${r - 3} 119` };
+    case 'bite':
+      return { d: `M${l + 4} 116 Q100 120 ${r - 4} 116` };
+    case 'tight':
+      return { d: `M${l + 4} 118 Q100 115 ${r - 4} 118` };
+  }
+}
+
+function FaceView({ spec, face, blink, hair }: { spec: AvatarSpec; face: Face; blink: boolean; hair: string }) {
+  const f = spec.features;
+  const ex = [86 - f.eyeGap, 114 + f.eyeGap] as const;
+  const eyeRy = 8 * f.eyeSize * (face.lid < 0 ? 1.12 : 1);
+  const eyeRx = 7 * f.eyeSize;
+  const lid = Math.max(0, face.lid);
+  const closed = blink || !spec.alive;
+  const m = mouthPath(face.mouth, f.mouthW);
   return (
     <G>
-      <Line x1={76} y1={79 + browTilt} x2={95} y2={79 - browTilt} stroke={hair} strokeWidth={3.2} strokeLinecap="round" />
-      <Line x1={105} y1={79 - browTilt} x2={124} y2={79 + browTilt} stroke={hair} strokeWidth={3.2} strokeLinecap="round" />
-      {blink || !spec.alive ? (
+      {/* brows: tilt raises the inner end (worry) or lowers it (anger) */}
+      <Line x1={ex[0] - 10} y1={79 - face.browL.lift + face.browL.tilt * 0.0} x2={ex[0] + 9} y2={79 - face.browL.lift - face.browL.tilt} stroke={hair} strokeWidth={f.browThick} strokeLinecap="round" />
+      <Line x1={ex[1] - 9} y1={79 - face.browR.lift - face.browR.tilt} x2={ex[1] + 10} y2={79 - face.browR.lift} stroke={hair} strokeWidth={f.browThick} strokeLinecap="round" />
+      {closed ? (
         <G stroke="#2A2230" strokeWidth={2.6} strokeLinecap="round">
-          <Line x1={79} y1={93} x2={93} y2={93} />
-          <Line x1={107} y1={93} x2={121} y2={93} />
+          <Line x1={ex[0] - 7} y1={93} x2={ex[0] + 7} y2={93} />
+          <Line x1={ex[1] - 7} y1={93} x2={ex[1] + 7} y2={93} />
         </G>
       ) : (
         <G>
-          <Ellipse cx={86} cy={93} rx={7} ry={8} fill="#FFFFFF" />
-          <Ellipse cx={114} cy={93} rx={7} ry={8} fill="#FFFFFF" />
-          <Circle cx={86} cy={94} r={4.2} fill={spec.eyeColor} />
-          <Circle cx={114} cy={94} r={4.2} fill={spec.eyeColor} />
-          <Circle cx={87.5} cy={92} r={1.4} fill="#FFFFFF" />
-          <Circle cx={115.5} cy={92} r={1.4} fill="#FFFFFF" />
+          {ex.map((cx, i) => (
+            <G key={i}>
+              <Ellipse cx={cx} cy={93} rx={eyeRx} ry={eyeRy} fill="#FFFFFF" />
+              <Circle cx={cx + face.gazeX * 2.6} cy={94 + face.gazeY * 2.4} r={4.2 * face.pupil * f.eyeSize} fill={spec.eyeColor} />
+              <Circle cx={cx + 1.5 + face.gazeX * 2.6} cy={92 + face.gazeY * 2.4} r={1.4} fill="#FFFFFF" />
+              {lid > 0.02 && (
+                <Rect x={cx - eyeRx - 1} y={93 - eyeRy - 1} width={eyeRx * 2 + 2} height={(eyeRy * 2 + 1) * lid} fill={spec.skinTone} />
+              )}
+            </G>
+          ))}
         </G>
       )}
-      {spec.mood === 'miserable' && <Path d="M80 102 q-3 7 0 10 q3 -3 0 -10 Z" fill="#7CC4FF" />}
-      {spec.sickness > 0.6 && <Path d="M132 70 q-4 8 0 11 q4 -3 0 -11 Z" fill="#7CC4FF" />}
+      {(face.tear || spec.mood === 'miserable') && <Path d={`M${ex[0] - 6} 102 q-3 7 0 10 q3 -3 0 -10 Z`} fill="#7CC4FF" />}
+      {(face.sweat || spec.sickness > 0.6) && <Path d="M132 70 q-4 8 0 11 q4 -3 0 -11 Z" fill="#7CC4FF" />}
       {/* nose */}
-      <Path d="M97 100 Q100 108 103 100" stroke="#00000030" strokeWidth={2} fill="none" strokeLinecap="round" />
+      {f.nose === 'button' && <Path d="M97 101 Q100 106 103 101" stroke="#00000030" strokeWidth={2} fill="none" strokeLinecap="round" />}
+      {f.nose === 'long' && <Path d="M99 94 Q96 106 101 108 M99 94 L99 104" stroke="#00000030" strokeWidth={2} fill="none" strokeLinecap="round" />}
+      {f.nose === 'wide' && <Path d="M93 104 Q100 110 107 104 M95 100 Q100 104 105 100" stroke="#00000030" strokeWidth={2} fill="none" strokeLinecap="round" />}
       {/* mouth */}
       {spec.accessory === 'pacifier' ? (
         <G>
           <Circle cx={100} cy={118} r={7} fill="#F28CB1" />
           <Circle cx={100} cy={118} r={3} fill="#FFE0EC" />
         </G>
-      ) : spec.mood === 'ecstatic' ? (
-        <Path d="M84 110 Q100 134 116 110 Z" fill="#7A1F2B" stroke="#7A1F2B" strokeWidth={2} strokeLinejoin="round" />
-      ) : spec.mood === 'happy' ? (
-        <Path d="M88 113 Q100 124 112 113" stroke="#7A1F2B" strokeWidth={3} fill="none" strokeLinecap="round" />
-      ) : spec.mood === 'neutral' ? (
-        <Line x1={91} y1={117} x2={109} y2={117} stroke="#7A1F2B" strokeWidth={3} strokeLinecap="round" />
       ) : (
-        <Path d="M89 120 Q100 110 111 120" stroke="#7A1F2B" strokeWidth={3} fill="none" strokeLinecap="round" />
+        <Path d={m.d} stroke="#7A1F2B" strokeWidth={f.lipThick} fill={m.fill ?? 'none'} strokeLinecap="round" strokeLinejoin="round" />
       )}
       {spec.glasses && (
         <G stroke="#2A2230" strokeWidth={2.4} fill="#FFFFFF22">
-          <Circle cx={86} cy={93} r={12} />
-          <Circle cx={114} cy={93} r={12} />
-          <Line x1={98} y1={93} x2={102} y2={93} />
+          <Circle cx={ex[0]} cy={93} r={12} />
+          <Circle cx={ex[1]} cy={93} r={12} />
+          <Line x1={ex[0] + 12} y1={93} x2={ex[1] - 12} y2={93} />
         </G>
       )}
     </G>

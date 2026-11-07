@@ -1,10 +1,10 @@
 import { ScrollView, Text, View } from 'react-native';
 import { gameContent } from '@content/index';
 import type { AssetOffer } from '@engine/content';
-import { buyBlocker, netWorth } from '@engine/index';
+import { AGE_GATES, buyBlocker, netWorth } from '@engine/index';
 import { Button, Card, Chip, Title } from '../components/kit';
 import { colors } from '../theme/tokens';
-import { common, FadeIn, fmt, pageStyle, SectionHeader, TabProps } from './shared';
+import { common, FadeIn, fmt, LockedCard, pageStyle, SectionHeader, TabProps } from './shared';
 
 const riskLabel = (sd: number): string => (sd < 0.05 ? 'Low risk' : sd < 0.2 ? 'Medium risk' : sd < 0.5 ? 'High risk' : 'Extreme risk');
 const GROUPS: { kind: AssetOffer['kind']; icon: string; title: string; color: string }[] = [
@@ -89,7 +89,10 @@ export default function MoneyTab({ game, act, guarded }: TabProps) {
         );
       })}
 
-      {GROUPS.map((g) => {
+      {c.age < AGE_GATES.money && (
+        <LockedCard icon="🛍️" title="Shop, property & investing" minAge={AGE_GATES.money} age={c.age} note={c.age < AGE_GATES.piggyBank ? 'Pocket money starts at 6' : 'Keep saving your pocket money'} />
+      )}
+      {c.age >= AGE_GATES.money && GROUPS.map((g) => {
         const items = gameContent.offers.filter((o) => o.kind === g.kind);
         if (items.length === 0) return null;
         return (

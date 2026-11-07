@@ -1,6 +1,6 @@
 import { Rng } from '../utils/rng';
 import { Appearance, Gender, HairStyle, Identity, Relationship, Trait, TraitDef } from './types';
-import { rollTraits, toTrait } from './traits';
+import { rollFamilyWealth, rollTraits, toTrait, wealthFlags } from './traits';
 
 /** Pools are injected (engine never imports content). Mirrors `@content/identityPools`. */
 export interface CountryPool {
@@ -49,6 +49,10 @@ export interface GeneratedPerson {
   identity: Identity;
   /** Starting family: parents (+ maybe siblings) sharing the surname/skin family. */
   family: Relationship[];
+  /** The player's own personality (2-3 traits). */
+  traits: Trait[];
+  /** Flags to merge into the new character: family wealth etc. */
+  flags: Record<string, boolean | number | string>;
 }
 
 /** Fully random person: gender, country, city, name, look, birth year, family. */
@@ -114,7 +118,10 @@ export function generatePerson(
       ...rollPersonality(rng, pools),
     });
   }
-  return { name, identity, family };
+  const defs = pools.traits ?? [];
+  const traits = defs.length >= 3 ? rollTraits(rng, defs, rng.chance(0.35) ? 3 : 2).map(toTrait) : [];
+  const flags = wealthFlags(rollFamilyWealth(rng));
+  return { name, identity, family, traits, flags };
 }
 
 const DEFAULT_BLURBS = [

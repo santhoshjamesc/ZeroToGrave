@@ -13,7 +13,7 @@ function step(s: GameState, a: YearAction): GameState {
 
 function playYear(s: GameState, clock: { t: number }): GameState {
   s = step(s, { type: 'ACK_BRIEFING' });
-  s = step(s, { type: 'SET_FOCUS', area: 'fitness', points: 3 });
+  s = step(s, { type: 'SET_FOCUS', area: 'family', points: 3 });
   s = step(s, { type: 'BANK_REMAINING_AS_REST' });
   s = step(s, { type: 'CONFIRM_FOCUS' });
   for (const e of s.yearLoop.pendingEvents) {
@@ -40,7 +40,7 @@ describe('Year Loop gates (anti-rush)', () => {
       { type: 'PROCEED_TO_COMMIT' },
       { type: 'CONFIRM_AGE_UP', now: 0 },
       { type: 'FINISH_AGING', now: 99999 },
-      { type: 'SET_FOCUS', area: 'study', points: 1 },
+      { type: 'SET_FOCUS', area: 'family', points: 1 },
     ];
     for (const a of bad) {
       const r = reduceYear(s, a, eventPools);
@@ -51,7 +51,7 @@ describe('Year Loop gates (anti-rush)', () => {
 
   it('blocks FOCUS -> DECISIONS with unspent focus points', () => {
     let s = step(newGame('Test', SEED), { type: 'ACK_BRIEFING' });
-    s = step(s, { type: 'SET_FOCUS', area: 'study', points: 2 });
+    s = step(s, { type: 'SET_FOCUS', area: 'family', points: 2 });
     const r = reduceYear(s, { type: 'CONFIRM_FOCUS' }, eventPools);
     expect(r.ok).toBe(false);
     expect(r.state.yearLoop.phase).toBe('FOCUS');
@@ -59,9 +59,9 @@ describe('Year Loop gates (anti-rush)', () => {
 
   it('rejects over-budget allocation and invalid points', () => {
     const s = step(newGame('Test', SEED), { type: 'ACK_BRIEFING' });
-    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'study', points: 99 }, eventPools).ok).toBe(false);
-    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'study', points: -1 }, eventPools).ok).toBe(false);
-    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'study', points: 1.5 }, eventPools).ok).toBe(false);
+    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'family', points: 99 }, eventPools).ok).toBe(false);
+    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'family', points: -1 }, eventPools).ok).toBe(false);
+    expect(reduceYear(s, { type: 'SET_FOCUS', area: 'family', points: 1.5 }, eventPools).ok).toBe(false);
   });
 
   it('blocks DECISIONS -> COMMIT while a mandatory event is unresolved', () => {

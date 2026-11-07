@@ -3,6 +3,8 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import {
   Character,
   FOCUS_AREAS,
+  focusAreaBlocker,
+  focusUnlockAge,
   GameState,
   MIN_AGING_MS,
   STAT_KEYS,
@@ -88,15 +90,29 @@ export default function YearPanel({ game, c, loop, guarded, dispatch, onAgeUp, o
           ))}
           <Text style={styles.pipText}>{left} left</Text>
         </View>
-        {FOCUS_AREAS.map((a) => (
-          <View key={a} style={styles.row}>
-            <Text style={styles.focusIcon}>{focusIcons[a]}</Text>
-            <Text style={[styles.body, { flex: 1 }]}>{a === 'sideHustle' ? 'Side hustle' : a[0]?.toUpperCase() + a.slice(1)}</Text>
-            <Button small variant="ghost" label="−" disabled={loop.allocation[a] === 0} onPress={() => dispatch({ type: 'SET_FOCUS', area: a, points: loop.allocation[a] - 1 })} />
-            <Text style={styles.count}>{loop.allocation[a]}</Text>
-            <Button small variant="ghost" label="+" disabled={left === 0} onPress={() => dispatch({ type: 'SET_FOCUS', area: a, points: loop.allocation[a] + 1 })} />
-          </View>
-        ))}
+        {FOCUS_AREAS.map((a) => {
+          const locked = focusAreaBlocker(c, a) !== null;
+          const little = c.age < 6;
+          const name = a === 'sideHustle' ? 'Side hustle' : a === 'hobby' && little ? 'Play' : a === 'study' && c.age < 11 ? 'Learn' : a[0]?.toUpperCase() + a.slice(1);
+          if (locked) {
+            return (
+              <View key={a} style={[styles.row, { opacity: 0.45 }]} accessibilityLabel={`${name} unlocks at age ${focusUnlockAge(a)}`}>
+                <Text style={styles.focusIcon}>🔒</Text>
+                <Text style={[styles.body, { flex: 1 }]}>{name}</Text>
+                <Text style={styles.pipText}>Age {focusUnlockAge(a)}+</Text>
+              </View>
+            );
+          }
+          return (
+            <View key={a} style={styles.row}>
+              <Text style={styles.focusIcon}>{focusIcons[a]}</Text>
+              <Text style={[styles.body, { flex: 1 }]}>{name}</Text>
+              <Button small variant="ghost" label="−" disabled={loop.allocation[a] === 0} onPress={() => dispatch({ type: 'SET_FOCUS', area: a, points: loop.allocation[a] - 1 })} />
+              <Text style={styles.count}>{loop.allocation[a]}</Text>
+              <Button small variant="ghost" label="+" disabled={left === 0} onPress={() => dispatch({ type: 'SET_FOCUS', area: a, points: loop.allocation[a] + 1 })} />
+            </View>
+          );
+        })}
         <Button label="😴 Bank the rest as Rest" variant="ghost" disabled={left === 0} onPress={() => dispatch({ type: 'BANK_REMAINING_AS_REST' })} />
         <Button label="Lock it in" disabled={left !== 0 || guarded} onPress={() => dispatch({ type: 'CONFIRM_FOCUS' })} />
       </Card>

@@ -3,6 +3,7 @@ import { gameContent } from '@content/index';
 import {
   careerBlocker,
   careerById,
+  AGE_GATES,
   EDUCATION_NAMES,
   hireChance,
   promotionBlocker,
@@ -11,7 +12,7 @@ import {
 import { useSettings } from '@store/useSettings';
 import { Button, Card, Chip, Title } from '../components/kit';
 import { colors } from '../theme/tokens';
-import { Banner, common, FadeIn, fmt, Meter, pageStyle, SectionHeader, TabProps } from './shared';
+import { Banner, common, FadeIn, fmt, LockedCard, Meter, pageStyle, SectionHeader, TabProps } from './shared';
 
 const oddsLabel = (p: number): string => (p < 0.25 ? 'Long shot' : p < 0.45 ? 'Possible' : p < 0.65 ? 'Good odds' : 'Likely');
 const KIND_LABEL = { primary: 'Primary school', secondary: 'High school', university: 'University', masters: "Master's", doctorate: 'Doctorate' } as const;
@@ -25,7 +26,12 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
   const promoWhy = promotionBlocker(c, gameContent);
   const edu = c.education;
 
+  const tooYoungForWork = c.age < AGE_GATES.jobs;
+  // Careers that only age keeps out of reach are teased in "Coming up" instead of listed as disabled cards.
+  const ageLocked = (k: (typeof gameContent.careers)[number]): boolean => c.age < Math.max(AGE_GATES.jobs, k.minAge);
+  const comingUp = gameContent.careers.filter(ageLocked).sort((a, b) => a.minAge - b.minAge);
   const rows = gameContent.careers
+    .filter((k) => !ageLocked(k))
     .map((k) => ({ k, why: careerBlocker(c, k, gameContent) }))
     .sort((a, b) => Number(!!a.why) - Number(!!b.why));
   const sectors = [...new Set(rows.map((r) => r.k.sector))];
@@ -35,7 +41,8 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
       {noTime && <Banner tone="warn" text="⏳ No time left this year. Age up to get more slots (money moves and quitting are free)." />}
 
       <SectionHeader icon="💼" title="Your job" color="#5DA9FF" />
-      <Card>
+      {tooYoungForWork && <LockedCard icon="💼" title="Jobs" minAge={AGE_GATES.jobs} age={c.age} note="Part-time work comes first" />}
+      {!tooYoungForWork && <Card>
         {job ? (
           <>
             <View style={common.row}>
@@ -74,7 +81,7 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
             <Text style={common.sub}>Browse the job board below and apply.</Text>
           </>
         )}
-      </Card>
+      </Card>}
 
       <SectionHeader icon="🎓" title="School" color="#C58BFF" />
       <Card>
@@ -95,7 +102,10 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
             ))}
           </View>
         )}
-        {(['university', 'masters', 'doctorate'] as const).map((kind) => {
+        {c.age < AGE_GATES.university && (
+          <LockedCard icon="🎓" title="College applications" minAge={AGE_GATES.university} age={c.age} note="Focus on school for now" />
+        )}
+        {c.age >= AGE_GATES.university && (['university', 'masters', 'doctorate'] as const).map((kind) => {
           const why = studyBlocker(c, kind);
           const label = kind === 'university' ? 'Apply to university' : kind === 'masters' ? "Apply for Master's" : 'Apply for Doctorate';
           return (
@@ -111,6 +121,7 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
       </Card>
 
       <SectionHeader icon="📋" title="Job board" color={colors.accent} />
+      {tooYoungForWork && <Text style={common.sub}>The board opens at {AGE_GATES.jobs}. Here is what is waiting.</Text>}
       {sectors.map((sector) => (
         <View key={sector} style={{ gap: 8 }}>
           <Text style={[common.sub, { letterSpacing: 1, textTransform: 'uppercase' }]}>{sector}</Text>
@@ -142,6 +153,17 @@ export default function WorkTab({ game, act, guarded }: TabProps) {
             })}
         </View>
       ))}
+      {comingUp.length > 0 && (
+        <View style={{ gap: 6 }}>
+          <Text style={[common.sub, { letterSpacing: 1, textTransform: 'uppercase' }]}>🔒 Coming up ({comingUp.length})</Text>
+          <View style={common.wrap}>
+            {comingUp.slice(0, 12).map((k) => (
+              <Chip key={k.id} text={`${k.icon} ${k.name} · ${Math.max(AGE_GATES.jobs, k.minAge)}+`} />
+            ))}
+            {comingUp.length > 12 && <Chip text={`+${comingUp.length - 12} more`} />}
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }

@@ -30,15 +30,15 @@ Skill hint in brackets, e.g. [arch] = `ztg-architecture`.
 
 ## Phase 3: Content (data-driven)
 - [ ] T3.1 (M) Event schema + validator script (`npm run content:validate`) [events]
-- [~] T3.2 (L) Childhood events (0-12) ×60 [events] — first 5 in `lifeEvents.ts`
-- [ ] T3.3 (L) Teen events (13-17) ×60 [events]
-- [~] T3.4 (L) Adult events ×100 (work, love, money, crime, health) [events] — 19 extra events in `extraEvents.ts` (gambles, flags, conditions); far from 100
-- [ ] T3.5 (L) Senior events ×50 [events]
-- [~] T3.6 (L) Careers: 100 with ladders, requirements, branching choices [events] — 36 careers (teen/trade/degree) with ladders + requirements in `src/content/careers.ts`; needs 100 + branching choices
+- [x] T3.2 (L) Childhood events (0-12) ×60 [events] — 69 in `childEvents.ts`
+- [x] T3.3 (L) Teen events (13-17) ×60 [events] — 68 in `teenEvents.ts`
+- [x] T3.4 (L) Adult events ×100 [events] — 139 in `adultEvents.ts`, with needs/trait gates and flag cascades
+- [x] T3.5 (L) Senior events ×50 [events] — 63 in `seniorEvents.ts`
+- [x] T3.6 (L) Careers: 100 [events] — 134 careers (`careers.ts` + `moreCareers.ts`)
 - [x] T3.7 (M) Diseases, injuries, treatments [events] — 26 diseases/injuries/addictions, hidden diagnosis, treatment + surgery
-- [~] T3.8 (M) Countries (20) with economy/healthcare/education modifiers [events] — 11 countries with cities/names; no modifiers yet
+- [~] T3.8 (M) Countries (20) [events] — 22 countries; `countryProfiles` modifiers written in `moreCountries.ts` but not yet used by the engine
 - [ ] T3.9 (M) Eras (4) with modifiers and era-specific events [events]
-- [~] T3.10 (M) Names, cities, hobbies, traits pools [events] — names/cities/looks done; hobbies/traits todo
+- [x] T3.10 (M) Names, cities, traits pools [events] — 40+ personality traits in `traits.ts`; hobbies pool todo
 - [~] T3.11 (M) Achievements (50) [events] — 40 achievements in `src/content/achievements.ts`; needs 50
 
 ## Phase 4: UI & navigation
@@ -79,3 +79,10 @@ Typecheck + lint + tests pass · no network calls added · save migration includ
 ## Notes
 - Added UI deps: react-native-svg, expo-haptics, expo-linear-gradient, react-native-safe-area-context (all need a dev-build rebuild: `npx expo run:ios`). Animations use RN `Animated` for now, not Reanimated.
 - `Character` gained `identity` + `log`; save format is now `version: 2` (v1→v2 migration in `src/store/migrations.ts`). Add a migration once T2.4 lands.
+
+## Phase 6: Character depth (added)
+- [x] T6.1 Age gates: `ageGates.ts` (focus areas, jobs, college, dating, shop, crime), UI locks + 'unlocks later'
+- [x] T6.2 Personality traits (birth + acquired), family wealth, trait-biased events, NPC personalities
+- [x] T6.3 Micro-expressions: temperament faces, idle flickers, event reactions; unique face features per person
+- [x] T6.4 Event schema: tags, needs, forbidsFlags, requiresTraits, once/cooldown
+- [ ] T6.5 Use `countryProfiles` (wealth/healthcare/education) in engine; old saves have no traits (no migration needed)

@@ -1,6 +1,7 @@
 import { Rng } from '../utils/rng';
 import { CareerDef, GameContent } from './content';
 import { AGE_GATES, tooYoung } from './ageGates';
+import { traitMods } from './traits';
 import { accept, clamp, fmtMoney, logIt, makePrompt, reject, ReduceResult } from './helpers';
 import { Character, GameState, Job } from './types';
 
@@ -31,8 +32,8 @@ export function careerBlocker(c: Character, career: CareerDef, content: GameCont
 }
 
 /** Hiring odds: ability, experience and a clean record. */
-export function hireChance(c: Character, career: CareerDef): number {
-  let p = 0.3 + (c.stats.smarts - 50) / 250 + Math.min(c.workXp, 40) / 120;
+export function hireChance(c: Character, career: CareerDef, content?: GameContent): number {
+  let p = 0.3 + (content ? traitMods(c, content.traits).hire : 0) + (c.stats.smarts - 50) / 250 + Math.min(c.workXp, 40) / 120;
   if (c.education.level > career.minEdu) p += 0.1;
   if (c.crime.record.length > 0) p -= 0.25;
   if (c.job) p += 0.05; // easier to move when employed
@@ -57,7 +58,7 @@ export function applyForJob(
   const blocker = careerBlocker(c, career, content);
   if (blocker) return reject(state, blocker);
 
-  if (!rng.chance(hireChance(c, career))) {
+  if (!rng.chance(hireChance(c, career, content))) {
     const next = logIt(
       { ...c, stats: { ...c.stats, happiness: clamp(c.stats.happiness - 2, 0, 100) } },
       '📨',

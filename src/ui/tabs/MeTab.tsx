@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { gameContent } from '@content/index';
-import { CHECKUP_COST, Condition, diseaseFor, EDUCATION_NAMES, netWorth, treatmentCost } from '@engine/index';
+import { CHECKUP_COST, Condition, diseaseFor, EDUCATION_NAMES, FAMILY_WEALTH, familyWealthOf, netWorth, traitDefs, treatmentCost } from '@engine/index';
 import { useSettings } from '@store/useSettings';
 import { Button, Card, Chip, StatBar, Title } from '../components/kit';
 import { colors, radius, spacing } from '../theme/tokens';
 import { TabProps } from './types';
 
-type Panel = 'health' | 'stats' | 'story' | 'badges';
+type Panel = 'self' | 'health' | 'stats' | 'story' | 'badges';
 const PANELS: { id: Panel; label: string }[] = [
+  { id: 'self', label: '🧬 You' },
   { id: 'health', label: '🩺 Health' },
   { id: 'stats', label: '📊 Stats' },
   { id: 'story', label: '📜 Story' },
@@ -25,7 +26,7 @@ const LIFESTYLE: Record<string, string> = {
 };
 
 export default function MeTab(props: TabProps) {
-  const [panel, setPanel] = useState<Panel>('health');
+  const [panel, setPanel] = useState<Panel>('self');
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.seg} accessibilityRole="tablist">
@@ -42,11 +43,42 @@ export default function MeTab(props: TabProps) {
           </Pressable>
         ))}
       </View>
+      {panel === 'self' && <Self {...props} />}
       {panel === 'health' && <Health {...props} />}
       {panel === 'stats' && <Stats {...props} />}
       {panel === 'story' && <Story {...props} />}
       {panel === 'badges' && <Badges {...props} />}
     </ScrollView>
+  );
+}
+
+function Self({ game }: TabProps) {
+  const c = game.character;
+  const wealth = FAMILY_WEALTH[familyWealthOf(c)];
+  const defs = traitDefs(c.traits, gameContent.traits);
+  return (
+    <>
+      <Card>
+        <Title>🧬 Personality</Title>
+        {defs.length === 0 && <Text style={styles.hint}>You have not found your personality yet.</Text>}
+        {defs.map((d) => (
+          <View key={d.id} style={{ gap: 2 }}>
+            <Text style={styles.hint}>
+              {d.icon} <Text style={{ color: colors.text, fontWeight: '800' }}>{d.label}</Text>
+            </Text>
+            <Text style={styles.hint}>{d.blurb}</Text>
+          </View>
+        ))}
+        <Text style={styles.hint}>Life can add to this. Big moments leave marks.</Text>
+      </Card>
+      <Card>
+        <Title>{wealth.icon} {wealth.label}</Title>
+        <Text style={styles.hint}>{wealth.blurb}</Text>
+        <Text style={styles.hint}>
+          Born in {c.identity.city}, {c.identity.country} {c.identity.flag} · {c.identity.zodiac}
+        </Text>
+      </Card>
+    </>
   );
 }
 

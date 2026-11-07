@@ -4,6 +4,7 @@ import { FocusAllocation, Gender, Relationship } from './types';
 import { effectiveUnits } from './focus';
 import { accept, clamp, fmtMoney, logIt, makePrompt, reject, ReduceResult } from './helpers';
 import { generateNpc } from './identity';
+import { FAMILY_WEALTH, familyWealthOf, traitMods } from './traits';
 import { Character, GameState } from './types';
 
 export type Interaction =
@@ -90,6 +91,8 @@ function newChild(c: Character, state: GameState, content: GameContent, rng: Rng
     look: npc.look,
     closeness: 85,
     blurb: adopted ? 'Adopted into your family.' : npc.blurb,
+    // Kids inherit a trait from a parent half the time; otherwise they are their own person.
+    traits: !adopted && partner?.traits?.[0] && rng.chance(0.5) ? [partner.traits[0], ...npc.traits.slice(0, 1)] : npc.traits,
   };
 }
 
@@ -250,6 +253,7 @@ export function meetPerson(
     look: npc.look,
     closeness: intent === 'love' ? 45 : 40,
     blurb: npc.blurb,
+    traits: npc.traits,
   };
   const first = npc.name.split(' ')[0] ?? npc.name;
   if (intent === 'friend') {
@@ -270,7 +274,7 @@ export function meetPerson(
       ]),
     });
   }
-  const p = clamp(0.28 + c.stats.looks / 250 + c.stats.happiness / 500 + c.stats.karma / 700, 0.12, 0.75);
+  const p = clamp(0.28 + c.stats.looks / 250 + c.stats.happiness / 500 + c.stats.karma / 700 + traitMods(c, content.traits).romance, 0.12, 0.8);
   return accept({
     ...state,
     prompt: makePrompt('meet.love', '💘 Someone catches your eye', `${npc.name}, ${age}. ${npc.blurb}`, [
@@ -331,7 +335,7 @@ export function relationshipsYear(
       notes.push(`${r.name} passed away`);
       out = logIt(out, '🕯️', `${r.name} (${r.kind === 'parent' ? (r.gender === 'female' ? 'your mother' : 'your father') : r.kind}) passed away at ${age + 1}.`);
       out = { ...out, stats: { ...out.stats, happiness: clamp(out.stats.happiness - (r.closeness > 60 ? 14 : 7), 0, 100) } };
-      if (r.kind === 'parent' && age > 55) inheritance += rng.int(5, 80) * 1000;
+      if (r.kind === 'parent' && age > 55) inheritance += Math.round(rng.int(5, 80) * 1000 * FAMILY_WEALTH[familyWealthOf(out)].inheritance);
       continue;
     }
     let d = -2.5;
@@ -377,6 +381,7 @@ export function relationshipsYear(
       look: npc.look,
       closeness: 38,
       blurb: npc.blurb,
+      traits: npc.traits,
     };
     out = logIt({ ...out, relationships: [...out.relationships, friend] }, '🤝', `Made a friend ${where}: ${npc.name}.`);
   }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { interactionsFor, personSpec, Relationship } from '@engine/index';
+import { AGE_GATES, interactionsFor, personSpec, Relationship } from '@engine/index';
 import { Avatar } from '../components/Avatar';
 import { Button, Card, Chip, Title } from '../components/kit';
 import { colors, spacing } from '../theme/tokens';
 import { TabProps } from './types';
+import { LockedCard } from './shared';
 
 const STATUS: Record<string, string> = {
   dating: 'Dating',
@@ -68,6 +69,13 @@ export default function PeopleTab({ game, act, guarded }: TabProps) {
             <Text style={styles.sub}>
               {label(r)} · age {r.age ?? '?'}
             </Text>
+            {r.traits && r.traits.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                {r.traits.map((t) => (
+                  <Chip key={t.id} text={`${t.icon ?? ''} ${t.label}`.trim()} />
+                ))}
+              </View>
+            ) : null}
             {r.blurb ? <Text style={styles.blurb}>{r.blurb}</Text> : null}
             {!r.deceased && (
               <>
@@ -115,6 +123,12 @@ export default function PeopleTab({ game, act, guarded }: TabProps) {
         )}
       </Card>
 
+      {c.age < AGE_GATES.friendsSearch && (
+        <LockedCard icon="🤝" title="Making friends on your own" minAge={AGE_GATES.friendsSearch} age={c.age} note="Playdates happen through your family" />
+      )}
+      {c.age >= AGE_GATES.friendsSearch && c.age < AGE_GATES.dating && (
+        <LockedCard icon="💘" title="Dating" minAge={AGE_GATES.dating} age={c.age} />
+      )}
       <View style={styles.header}>
         {c.age >= 14 && (
           <View style={{ flex: 1 }}>

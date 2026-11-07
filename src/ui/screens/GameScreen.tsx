@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { gameContent } from '@content/index';
 import {
   avatarSpec,
+  Cue,
+  cueFromChange,
   GameAction,
   GameState,
   lifeStage,
@@ -55,6 +57,8 @@ export default function GameScreen({ initial, onChange, onExit, onNewLife, onHei
   const [tab, setTab] = useState<Tab>('life');
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const toastId = useRef(0);
+  const [cue, setCue] = useState<{ id: number; kind: Cue } | null>(null);
+  const cueId = useRef(0);
   const { character: c, yearLoop: loop } = game;
   const spec = useMemo(() => avatarSpec(c), [c]);
 
@@ -78,6 +82,11 @@ export default function GameScreen({ initial, onChange, onExit, onNewLife, onHei
       const next = r.state;
       gameRef.current = next;
       setGame(next);
+      const kind = cueFromChange(before.character, next.character);
+      if (kind) {
+        cueId.current += 1;
+        setCue({ id: cueId.current, kind });
+      }
       const fresh = next.character.log.slice(before.character.log.length);
       const last = fresh[fresh.length - 1];
       if (action.type !== 'FINISH_AGING' && last) {
@@ -170,7 +179,7 @@ export default function GameScreen({ initial, onChange, onExit, onNewLife, onHei
                 {dead ? (
                   <Tombstone name={c.name} years={`${c.identity.birthYear} – ${c.identity.birthYear + c.age - 1}`} size={220} />
                 ) : (
-                  <Avatar spec={spec} size={210} />
+                  <Avatar spec={spec} size={210} cue={cue} />
                 )}
               </View>
               <View style={styles.moneyPill}>

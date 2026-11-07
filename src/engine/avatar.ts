@@ -1,4 +1,4 @@
-import { Appearance, Character, Gender, HairStyle, Relationship } from './types';
+import { Appearance, Character, Gender, HairStyle, Relationship, Temperament, Trait } from './types';
 
 /** Life stages drive body proportions and wardrobe in the avatar renderer. */
 export type LifeStage = 'baby' | 'toddler' | 'child' | 'teen' | 'adult' | 'middle' | 'senior';
@@ -21,6 +21,53 @@ export function moodFor(happiness: number): Mood {
   if (happiness >= 35) return 'neutral';
   if (happiness >= 15) return 'sad';
   return 'miserable';
+}
+
+/** Per-person face geometry, derived from the id so everyone looks distinct. */
+export interface FaceFeatures {
+  /** Horizontal face scale 0.9-1.1. */
+  faceW: number;
+  jaw: 'round' | 'soft' | 'square';
+  eyeSize: number;
+  /** Extra px between the eyes (-2..3). */
+  eyeGap: number;
+  browThick: number;
+  nose: 'button' | 'long' | 'wide';
+  lipThick: number;
+  mouthW: number;
+  dimples: boolean;
+  mole: { x: number; y: number } | null;
+  earrings: boolean;
+  headwear: 'none' | 'cap' | 'beanie' | 'headband';
+  pattern: 'plain' | 'stripes' | 'dots' | 'collar';
+  earSize: number;
+}
+
+/** Deterministic 0..1 number from an id and a salt. */
+export function unit(id: string, salt: string): number {
+  return (hash(`${id}:${salt}`) % 10000) / 10000;
+}
+
+export function faceFeatures(id: string, age: number, gender: Gender): FaceFeatures {
+  const u = (s: string) => unit(id, s);
+  const pickOf = <T,>(s: string, items: readonly T[]): T => items[Math.floor(u(s) * items.length)] as T;
+  const young = age < 6;
+  return {
+    faceW: 0.92 + u('fw') * 0.18,
+    jaw: pickOf('jaw', ['round', 'soft', 'square'] as const),
+    eyeSize: 0.88 + u('es') * 0.26,
+    eyeGap: Math.round(-2 + u('eg') * 5),
+    browThick: 2.4 + u('bt') * 2.2,
+    nose: pickOf('nose', ['button', 'long', 'wide'] as const),
+    lipThick: 2.6 + u('lt') * 1.8,
+    mouthW: 0.85 + u('mw') * 0.3,
+    dimples: u('dm') < 0.22,
+    mole: u('mo') < 0.18 ? { x: 70 + Math.round(u('mx') * 60), y: 100 + Math.round(u('my') * 14) } : null,
+    earrings: !young && (gender === 'female' ? u('er') < 0.4 : u('er') < 0.1),
+    headwear: age < 3 || age > 70 ? 'none' : u('hw') < 0.1 ? 'cap' : u('hw') < 0.17 ? 'beanie' : u('hw') < 0.22 ? 'headband' : 'none',
+    pattern: pickOf('pat', ['plain', 'plain', 'stripes', 'dots', 'collar'] as const),
+    earSize: 0.8 + u('ear') * 0.45,
+  };
 }
 
 /** Everything the renderer needs. Pure function of the character: same input, same picture. */
@@ -49,6 +96,11 @@ export interface AvatarSpec {
   accessory: 'none' | 'backpack' | 'tie' | 'cane' | 'pacifier';
   gender: 'male' | 'female' | 'nonbinary';
   alive: boolean;
+  features: FaceFeatures;
+  /** Personality flavours, strongest first. Drive the resting face and micro-expressions. */
+  temperaments: Temperament[];
+  /** Stable id for seeding idle behaviour. */
+  id: string;
 }
 
 const SHIRTS = ['#E5675F', '#4FA3D1', '#F2C14E', '#7BC47F', '#B58AE0', '#F28C4E', '#4DB6AC'];
@@ -69,6 +121,7 @@ interface SpecInput {
   money: number;
   salary: number;
   alive: boolean;
+  traits?: readonly Trait[];
 }
 
 function buildSpec(c: SpecInput): AvatarSpec {
@@ -112,6 +165,9 @@ function buildSpec(c: SpecInput): AvatarSpec {
     accessory,
     gender: c.gender,
     alive: c.alive,
+    features: faceFeatures(c.id, c.age, c.gender),
+    temperaments: (c.traits ?? []).flatMap((t) => (t.temperament ? [t.temperament] : [])),
+    id: c.id,
   };
 }
 
@@ -126,6 +182,7 @@ export function avatarSpec(c: Character): AvatarSpec {
     money: c.money,
     salary: c.job?.salary ?? 0,
     alive: c.alive,
+    traits: c.traits,
   });
 }
 
@@ -141,5 +198,6 @@ export function personSpec(r: Relationship, fallback: Appearance): AvatarSpec {
     money: 0,
     salary: 0,
     alive: true,
+    traits: r.traits,
   });
 }
