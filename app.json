@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "ZeroToGrave",
+    "slug": "zerotograve",
+    "scheme": "zerotograve",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zerotograve.app"
+    },
+    "android": {
+      "package": "com.zerotograve.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#2A6496",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#2A6496"
+        }
+      ],
+      "expo-audio"
+    ]
+  }
+}
